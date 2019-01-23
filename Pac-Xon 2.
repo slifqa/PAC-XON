@@ -1,0 +1,1164 @@
+Klasa core.cs
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using SDL2;
+
+
+namespace sliwa2
+{
+    
+    class core
+    {
+
+        public bool running = true; 
+
+        public IntPtr win; 
+        public IntPtr render;
+        public IntPtr Sans;
+
+
+                IntPtr blockTexture;
+        IntPtr enemyNormalTexture;
+        IntPtr playerRightTexture;
+        IntPtr playerUpTexture;
+        IntPtr playerDownTexture;
+        IntPtr playerLeftTexture;
+        IntPtr buildingTexture;
+        IntPtr redEnemyTexture;
+
+
+
+        public core()           {
+            SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_AUDIO);
+            win = SDL.SDL_CreateWindow("PACMAN by Sliwa", 50, 50, 800, 500, SDL.SDL_WindowFlags.SDL_WINDOW_SHOWN);
+            render = SDL.SDL_CreateRenderer(win, -1, SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED);
+            
+            SDL.SDL_InitSubSystem(SDL.SDL_INIT_GAMECONTROLLER);
+            SDL.SDL_SetRenderDrawColor(render, 0, 0, 0, 0);
+
+            
+            blockTexture = LoadTexture("block.png");
+            enemyNormalTexture = LoadTexture("enemy_normal.png");
+            playerRightTexture = LoadTexture("player_right.png");
+            playerUpTexture = LoadTexture("player_up.png");
+            playerLeftTexture = LoadTexture("player_left.png");
+            playerDownTexture = LoadTexture("player_down.png");
+            buildingTexture = LoadTexture("building.png");
+            redEnemyTexture = LoadTexture("enemy_red.png");
+
+
+            SDL_ttf.TTF_Init();
+            Sans = SDL_ttf.TTF_OpenFont("Sans.ttf", 24); 
+
+
+
+        }
+
+        SDL.SDL_Event systemEvent; 
+
+        public void printScore(Logic logic)  
+        {
+            printText(160, 400, "Score: "+ logic.score);  
+        }
+
+        public void printLives(Logic logic) 
+        {
+            printText(340, 400, "Lives: " + logic.lives);
+        }
+
+        public void printLevel(int levelNum) 
+        {
+            printText(20, 400, "Level: " + levelNum);
+        }
+
+
+        public void printPercent(ref Map map) 
+        {
+            printText(630, 400,  map.percent() + "%");
+        }
+
+
+        private void printText(int x, int y, string message)
+        {
+
+            
+
+            SDL.SDL_Color White = new SDL.SDL_Color { r = 255, g = 255, b = 255 };  
+
+            IntPtr surfaceMessage = SDL_ttf.TTF_RenderText_Solid(Sans, message, White); 
+          
+
+            IntPtr Message = SDL.SDL_CreateTextureFromSurface(render, surfaceMessage); 
+
+            SDL.SDL_Rect Message_rect; 
+            Message_rect.x = x;  
+            Message_rect.y = y; 
+            Message_rect.w = message.Length * 12; 
+            Message_rect.h = 30; 
+
+           
+
+            SDL.SDL_RenderCopy(render, Message, IntPtr.Zero, ref Message_rect); 
+            
+
+            SDL.SDL_FreeSurface(surfaceMessage);
+            SDL.SDL_DestroyTexture(Message);
+
+
+        }
+
+
+        public void Events()  
+        {
+            while (SDL.SDL_PollEvent(out systemEvent) != 0)
+            {
+                if (systemEvent.type == SDL.SDL_EventType.SDL_QUIT)
+                {
+                    running = false;
+                }
+            }
+        }
+
+        public void Present()  
+        {
+            SDL.SDL_RenderPresent(render);
+        }
+
+        public void clear()  
+        {
+            SDL.SDL_SetRenderDrawColor(render, 0, 0, 0, 0);
+            SDL.SDL_RenderClear(render);
+        }
+
+        public IntPtr LoadTexture(string filepath)  
+        {
+            return SDL_image.IMG_LoadTexture(render, filepath);
+        }
+
+        public void feedByMap(ref Map map)  
+        {
+            List<PixelToPrint> printingList = new List<PixelToPrint>();  
+            map.getPrintingList(ref printingList);   
+
+           
+
+
+            foreach (PixelToPrint pixel in printingList) 
+            {
+                printPixel(pixel);
+            }
+        }
+
+        public void feedByEnemies(List<Enemy> listOfEnemies)  
+        {
+
+            foreach (var enemy in listOfEnemies) 
+            {
+                if (enemy.type == PixelType.ENEMY_NORMAL)  
+                    DrawSprite(enemyNormalTexture,
+                    new SDL.SDL_Rect() { x = enemy.y, y = enemy.x, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+                else if (enemy.type == PixelType.ENEMY_RED)  
+                    DrawSprite(redEnemyTexture,
+                   new SDL.SDL_Rect() { x = enemy.y, y = enemy.x, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+            }
+        }
+
+        public void feedByPlayer(Player player)  
+        {
+            if(player.lastPlayerMove == Player.MovePlayer.RIGHT) 
+                DrawSprite(playerRightTexture, 
+                    new SDL.SDL_Rect() { x = player.yBlock * Map.SQUARE_SIZE, y = player.xBlock * Map.SQUARE_SIZE, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+            else if (player.lastPlayerMove == Player.MovePlayer.LEFT)
+                DrawSprite(playerLeftTexture,
+                    new SDL.SDL_Rect() { x = player.yBlock * Map.SQUARE_SIZE, y = player.xBlock * Map.SQUARE_SIZE, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+            else if (player.lastPlayerMove == Player.MovePlayer.UP)
+                DrawSprite(playerUpTexture,
+                    new SDL.SDL_Rect() { x = player.yBlock * Map.SQUARE_SIZE, y = player.xBlock * Map.SQUARE_SIZE, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+            else if (player.lastPlayerMove == Player.MovePlayer.DOWN)
+                DrawSprite(playerDownTexture,
+                    new SDL.SDL_Rect() { x = player.yBlock * Map.SQUARE_SIZE, y = player.xBlock * Map.SQUARE_SIZE, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+        }
+
+
+        private void printPixel(PixelToPrint pixel) 
+        {
+
+            if (pixel.type == PixelType.BLOCK)
+                DrawSprite(blockTexture,
+                     new SDL.SDL_Rect() { x = pixel.colIndex, y = pixel.rowIndex, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });  
+
+            else if (pixel.type == PixelType.BUILDING)
+                DrawSprite(buildingTexture,
+                    new SDL.SDL_Rect() { x = pixel.colIndex, y = pixel.rowIndex, w = Map.SQUARE_SIZE, h = Map.SQUARE_SIZE });
+
+            else if (pixel.type == PixelType.INTERRUPTED_BUILDING) 
+                printRectangleRed(pixel.rowIndex, pixel.colIndex, Map.SQUARE_SIZE);
+
+        }
+
+
+
+        private void printRectangleRed(int i, int j, int size)  
+        {
+            SDL.SDL_Rect fillRect = new SDL.SDL_Rect() { x = j, y = i, w = size, h = size };
+
+            SDL.SDL_SetRenderDrawColor(render, 0xFF, 0x00, 0x00, 0xFF);
+            SDL.SDL_RenderFillRect(render, ref fillRect);
+
+        }
+
+        public void DrawSprite(IntPtr myTexture, SDL.SDL_Rect destinationRect) 
+        {
+            SDL.SDL_RenderCopy(render, myTexture, IntPtr.Zero, ref destinationRect);
+            SDL.SDL_SetRenderDrawColor(render, 0, 0, 0, 0);
+
+        }
+
+        public Player.MovePlayer getMoveDirectionFromPlayer()   
+        {
+            Player.MovePlayer move = Player.MovePlayer.NOTHING;
+
+            
+            while (SDL.SDL_PollEvent(out systemEvent) != 0)
+            {
+                
+
+                if (systemEvent.type == SDL.SDL_EventType.SDL_KEYDOWN)
+                {
+
+                    
+                    switch (systemEvent.key.keysym.sym)
+                    {
+                        case SDL.SDL_Keycode.SDLK_UP:
+                            move = Player.MovePlayer.UP;
+                            break;
+
+                        case SDL.SDL_Keycode.SDLK_DOWN:
+                            move = Player.MovePlayer.DOWN;
+                            break;
+
+                        case SDL.SDL_Keycode.SDLK_LEFT:
+                            move = Player.MovePlayer.LEFT;
+                            break;
+
+                        case SDL.SDL_Keycode.SDLK_RIGHT:
+                            move = Player.MovePlayer.RIGHT;
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            return move;
+        }
+    }
+}
+
+
+Klasa Enemy.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+
+namespace sliwa2
+{
+    abstract class Enemy  
+    {
+        static private Random random = new Random();  
+
+        protected int pace; 
+        public int x; 
+        public int y;  
+        public int size;
+        public PixelType type;  
+
+        public abstract void move(int iteration);  
+        public abstract void solveCollision(Logic.CollisionSide side, ref Map map);  
+
+        public bool isCollison(int x, int y)  
+
+
+        {
+
+            if (Math.Abs(this.x - x) < Map.SQUARE_SIZE &&  Math.Abs(this.y - y )< Map.SQUARE_SIZE)  
+                return true;
+            else 
+                return false;
+        }
+
+        public bool isBugged() 
+        {
+            return x < 0 || y < 0 || x > Map.MAP_HEIGHT - Map.SQUARE_SIZE || y > Map.MAP_WIDTH - Map.SQUARE_SIZE;
+        }
+        protected bool randomBool()  
+        {
+            return random.NextDouble() >= 0.5;
+
+        }
+
+        protected int randomInt(int start, int end)  
+        {
+            return random.Next(start, end);
+
+        }
+
+
+        protected int randomDirection() 
+        {
+            return randomBool() ? -1 : 1;
+        }
+    }
+}
+
+
+Klasa EnemyFactory.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    static class EnemyFactory 
+    {
+        
+
+        public static void getListOfEnemies(ref List<Enemy> enemies, int normalEnemies, int redEnemies)
+        {
+
+            for (int i = 0; i < normalEnemies; i++)
+                enemies.Add(new NormalEnemy());
+
+            for (int i = 0; i < redEnemies; i++)
+                enemies.Add(new RedEnemy());
+
+        }
+
+        public static Enemy getNormalEnemy()
+        {
+            return new NormalEnemy();
+        }
+
+        public static Enemy getRedEnemy()
+        {
+            return new RedEnemy();
+        }
+    }
+}
+
+
+Klasa Level.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    class Level
+    {
+        
+        int normalEnemies; 
+        int redEnemies; 
+        public Map map; 
+        public List<Enemy> enemies ; 
+        public Player player; 
+
+        public Level(int normalE, int redE) 
+        {
+            normalEnemies = normalE;
+            redEnemies = redE;
+        }
+        
+        public void initLevel() 
+        {
+            
+            map = new Map(); 
+            enemies = new List<Enemy>(); 
+
+            EnemyFactory.getListOfEnemies(ref enemies, normalEnemies, redEnemies); 
+            player = new Player(); 
+
+        }
+
+        public bool hasEnded() 
+        {
+            return map.isFull(); 
+        }
+    }
+}
+
+
+Klasa Logic.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    class Logic  
+    {
+
+        private bool running = true;  
+        public int lives = 3;  
+        public int score = 0; 
+        public enum CollisionSide { UP, DOWN, LEFT, RIGHT }; 
+
+
+        public void newLive() 
+        {
+            lives++;
+        }
+
+        public bool isGame() 
+        {
+            return running && lives >= 0;
+        }
+
+        public void moveEnemies(List<Enemy> enemies, int iteration) 
+        {
+            List<Enemy> enemiesBugged = new List<Enemy>(); 
+            foreach (var enemy in enemies)
+            {
+                enemy.move(iteration); 
+                if (enemy.isBugged()) 
+                    enemiesBugged.Add(enemy);
+            }
+
+
+
+           
+            foreach (var enemy in enemiesBugged)
+            {
+                enemies.Remove(enemy);
+
+            }
+        }
+
+        private void playerDied(ref Player player, ref Map map) 
+        {
+            lives--;
+            player.reset(); 
+            map.deleteBuilding(); 
+        }
+
+        public void playerInterruptedBuildingCollision(ref Player player, ref Map map) 
+        {
+            if (map.isBuildingInterrupted(player.xBlock * Map.SQUARE_SIZE, player.yBlock * Map.SQUARE_SIZE)) 
+                playerDied(ref player, ref map);
+        }
+
+        public void enemyPlayerCollison(List<Enemy> enemies, Player player, Map map)  
+        {
+            foreach (var enemy in enemies) 
+            {
+                if (enemy.isCollison(player.xBlock * Map.SQUARE_SIZE, player.yBlock * Map.SQUARE_SIZE))
+                {
+                    playerDied(ref player, ref map); 
+                }
+            }
+        }
+
+ 
+
+
+
+        public void solveCollisions(ref List<Enemy> enemies, ref Map map)   
+        {
+
+            foreach (Enemy enemy in enemies)
+            {
+                bool collision = false;
+                bool buildingCollision = false;
+                CollisionSide side = 0;
+
+
+                
+
+
+                if (!map.isEmpty(enemy.x + Map.SQUARE_SIZE / 2, enemy.y - 1))  
+                {
+                    collision = true;
+                    side = CollisionSide.LEFT;
+                    buildingCollision = map.isBuilding(enemy.x + Map.SQUARE_SIZE / 2, enemy.y - 1);
+
+                }
+                else if (!map.isEmpty(enemy.x - 1, enemy.y + Map.SQUARE_SIZE / 2))
+                {
+                    collision = true;
+                    side = CollisionSide.UP;
+                    buildingCollision = map.isBuilding(enemy.x - 1, enemy.y + Map.SQUARE_SIZE / 2);
+
+                }
+                else if (!map.isEmpty(enemy.x + Map.SQUARE_SIZE / 2, enemy.y + Map.SQUARE_SIZE + 1))
+                {
+                    collision = true;
+                    side = CollisionSide.RIGHT;
+                    buildingCollision = map.isBuilding(enemy.x + Map.SQUARE_SIZE / 2, enemy.y + Map.SQUARE_SIZE + 1);
+
+                }
+                else if (!map.isEmpty(enemy.x + Map.SQUARE_SIZE + 1, enemy.y + Map.SQUARE_SIZE / 2))
+                {
+                    collision = true;
+                    side = CollisionSide.DOWN;
+                    buildingCollision = map.isBuilding(enemy.x + Map.SQUARE_SIZE + 1, enemy.y + Map.SQUARE_SIZE / 2);
+
+                }
+
+                if (collision)   
+                {
+                    int i = 1;
+                    enemy.solveCollision(side, ref map);
+                    if (buildingCollision)
+                        map.solveCollisionWithBuilding(enemy, side);
+                }
+
+            }
+
+
+        }
+
+
+        public void fillSpace(ref Map map, List<Enemy> enemies)
+        {
+
+            int newScore = map.tryFilling(enemies);
+            score += (int)(newScore * newScore * 0.01); 
+
+        }
+
+    }
+}
+
+
+Klasa Map.cs
+
+using System.Collections.Generic;
+
+namespace sliwa2
+{
+
+    enum PixelType { EMPTY, BLOCK, ENEMY_NORMAL, ENEMY_RED, PLAYER, BUILDING, INTERRUPTED_BUILDING, INTERRUPTED_BUILDING_NEW };
+
+    struct PixelToPrint 
+    {
+        public int rowIndex; 
+        public int colIndex; 
+        public PixelType type; 
+
+
+        public PixelToPrint(int rowIndex, int colIndex, PixelType type)   
+        {
+            this.rowIndex = rowIndex;
+            this.colIndex = colIndex;
+            this.type = type;
+
+        }
+    }
+
+    class Map 
+    {
+
+        
+        public const int MAP_HEIGHT = 390;
+        public const int MAP_WIDTH = 690;
+        public const int SQUARE_SIZE = 15;
+        public const int MAX_ROW_INDEX = MAP_HEIGHT / SQUARE_SIZE - 1;
+        public const int MAX_COL_INDEX = MAP_WIDTH / SQUARE_SIZE - 1;
+
+
+        PixelType[,] mapPixels;  
+
+
+
+
+        public Map() 
+        {
+            mapPixels = new PixelType[MAP_HEIGHT, MAP_WIDTH];  
+            fill(0, MAX_ROW_INDEX, 0, MAX_COL_INDEX, PixelType.EMPTY); 
+            fillRow(0, PixelType.BLOCK); 
+            fillRow(MAX_ROW_INDEX, PixelType.BLOCK); 
+            fillCol(0, PixelType.BLOCK);
+            fillCol(MAX_COL_INDEX, PixelType.BLOCK);
+
+        }
+        ~Map()
+        {
+
+        }
+
+        public void destroy(int x, int y) 
+        {
+            if (x > 0 && x < MAP_HEIGHT - SQUARE_SIZE && y > 0 && y < MAP_WIDTH - SQUARE_SIZE) 
+                fill(x, x + SQUARE_SIZE, y, y + SQUARE_SIZE, PixelType.EMPTY); 
+
+        }
+        public bool isEmpty(int x, int y)  
+        {
+
+            return mapPixels[x, y] == PixelType.EMPTY;
+
+        }
+
+        public bool isBuilding(int x, int y)   
+        {
+            return mapPixels[x, y] == PixelType.BUILDING;
+        }
+
+        public bool isBuildingInterrupted(int x, int y) 
+        {
+            return mapPixels[x, y] == PixelType.INTERRUPTED_BUILDING;
+        }
+
+        public int percent() 
+        {
+            double blocks = 0; 
+            for (int i = 1; i < MAX_ROW_INDEX; i++) 
+                for (int j = 1; j < MAX_COL_INDEX; j++)
+                    if (mapPixels[startOfSquare(i), startOfSquare(j)] == PixelType.BLOCK) 
+                        blocks++; 
+
+            double percent = blocks / ((MAX_ROW_INDEX - 1) * (MAX_COL_INDEX - 1)); 
+
+            return (int)(percent * 100); 
+        }
+
+
+        public bool isFull() 
+        {
+            
+            return percent() >= 80;
+        }
+
+        public void progressInterrupted() 
+        {
+            for (int i = 0; i <= MAX_ROW_INDEX; i++)
+                for (int j = 0; j <= MAX_COL_INDEX; j++)
+                    if (mapPixels[startOfSquare(i), startOfSquare(j)] == PixelType.INTERRUPTED_BUILDING) 
+                    {
+                        
+                        if (mapPixels[startOfSquare(i + 1), startOfSquare(j)] == PixelType.BUILDING) 
+                            fill(startOfSquare(i + 1), endOfSquare(i + 1), startOfSquare(j), endOfSquare(j), PixelType.INTERRUPTED_BUILDING_NEW); 
+                        if (mapPixels[startOfSquare(i - 1), startOfSquare(j)] == PixelType.BUILDING)
+                            fill(startOfSquare(i - 1), endOfSquare(i - 1), startOfSquare(j), endOfSquare(j), PixelType.INTERRUPTED_BUILDING_NEW);
+                        if (mapPixels[startOfSquare(i), startOfSquare(j + 1)] == PixelType.BUILDING)
+                            fill(startOfSquare(i), endOfSquare(i), startOfSquare(j + 1), endOfSquare(j + 1), PixelType.INTERRUPTED_BUILDING_NEW);
+                        if (mapPixels[startOfSquare(i), startOfSquare(j - 1)] == PixelType.BUILDING)
+                            fill(startOfSquare(i), endOfSquare(i), startOfSquare(j - 1), endOfSquare(j - 1), PixelType.INTERRUPTED_BUILDING_NEW);
+                    }
+
+            
+            for (int i = 0; i <= MAX_ROW_INDEX; i++)
+                for (int j = 0; j <= MAX_COL_INDEX; j++)
+                    if (mapPixels[startOfSquare(i), startOfSquare(j)] == PixelType.INTERRUPTED_BUILDING_NEW)
+                        fill(startOfSquare(i), endOfSquare(i), startOfSquare(j), endOfSquare(j), PixelType.INTERRUPTED_BUILDING);
+        }
+
+
+        public void solveCollisionWithBuilding(Enemy enemy, Logic.CollisionSide side) 
+        {
+
+            if (side == Logic.CollisionSide.UP)
+            {
+
+                fill(enemy.x - SQUARE_SIZE, enemy.x, enemy.y, enemy.y + SQUARE_SIZE, PixelType.INTERRUPTED_BUILDING);
+            }
+            else if (side == Logic.CollisionSide.DOWN)
+            {
+                fill(enemy.x + SQUARE_SIZE + 1, enemy.x + 2 * SQUARE_SIZE + 1, enemy.y, enemy.y + SQUARE_SIZE, PixelType.INTERRUPTED_BUILDING); 
+            }
+            else if (side == Logic.CollisionSide.LEFT)
+            {
+                fill(enemy.x, enemy.x + SQUARE_SIZE, enemy.y - SQUARE_SIZE, enemy.y, PixelType.INTERRUPTED_BUILDING);
+            }
+            else if (side == Logic.CollisionSide.RIGHT)
+            {
+                fill(enemy.x, enemy.x + SQUARE_SIZE, enemy.y + SQUARE_SIZE + 1, enemy.y + 2 * SQUARE_SIZE + 1, PixelType.INTERRUPTED_BUILDING);
+
+            }
+        }
+
+        public int tryFilling(List<Enemy> enemies) 
+        {
+            bool[,] binaryMap = new bool[MAX_ROW_INDEX + 1, MAX_COL_INDEX + 1];  
+
+            getBinaryMap(ref binaryMap); 
+
+            foreach (Enemy enemy in enemies) 
+                startSignal(enemy, ref binaryMap); 
+
+            
+            int newScore = fillByBinaryMap(ref binaryMap); 
+
+            newScore += fillBuilding(); 
+
+            return newScore; 
+
+        }
+
+        private int fillByBinaryMap(ref bool[,] binaryMap) 
+        {
+            int newScore = 0;
+            for (int i = 0; i <= MAX_ROW_INDEX; i++)
+                for (int j = 0; j <= MAX_COL_INDEX; j++)
+                    if (binaryMap[i, j] == false)
+                    {
+                        newScore++;
+                        fill(startOfSquare(i), endOfSquare(i), startOfSquare(j), endOfSquare(j), PixelType.BLOCK); 
+                    }
+
+            return newScore;
+        }
+
+        private void startSignal(Enemy enemy, ref bool[,] binaryMap)  
+        {
+            signal(enemy.x / SQUARE_SIZE, enemy.y / SQUARE_SIZE, ref binaryMap); 
+        }
+
+        private void signal(int i, int j, ref bool[,] binaryMap)
+        {
+
+            if (binaryMap[i, j] == false) 
+            {
+                binaryMap[i, j] = true; 
+
+                
+                if (i - 1 >= 0)
+                    signal(i - 1, j, ref binaryMap);
+                if (i + 1 <= MAX_ROW_INDEX)
+                    signal(i + 1, j, ref binaryMap);
+                if (j - 1 >= 0)
+                    signal(i, j - 1, ref binaryMap);
+                if (j + 1 <= MAX_COL_INDEX)
+                    signal(i, j + 1, ref binaryMap);
+            }
+        }
+
+        private void getBinaryMap(ref bool[,] binaryMap)
+        {
+
+            for (int i = 0; i <= MAX_ROW_INDEX; i++)
+                for (int j = 0; j <= MAX_COL_INDEX; j++)
+                    binaryMap[i, j] = !isEmpty(i * SQUARE_SIZE, j * SQUARE_SIZE);
+
+        }
+        public void deleteBuilding() 
+        {
+            for (int i = 0; i < MAP_HEIGHT; i++)
+                for (int j = 0; j < MAP_WIDTH; j++)
+                {
+                    if (mapPixels[i, j] == PixelType.BUILDING || mapPixels[i, j] == PixelType.INTERRUPTED_BUILDING)
+                        mapPixels[i, j] = PixelType.EMPTY;
+                }
+        }
+        public int fillBuilding()
+        {
+            int newScore = 0;
+
+            for (int i = 0; i <= MAX_ROW_INDEX; i++)
+                for (int j = 0; j <= MAX_COL_INDEX; j++)
+                {
+                    if (mapPixels[startOfSquare(i), startOfSquare(j)] == PixelType.BUILDING || mapPixels[startOfSquare(i), startOfSquare(j)] == PixelType.INTERRUPTED_BUILDING)
+                    {
+                        fill(startOfSquare(i), endOfSquare(i), startOfSquare(j), endOfSquare(j), PixelType.BLOCK);
+                        newScore++;
+                    }
+                }
+
+            return newScore;
+        }
+
+
+        public void build(int xBlock, int yBlock) 
+        {
+            fill(startOfSquare(xBlock), endOfSquare(xBlock), startOfSquare(yBlock), endOfSquare(yBlock), PixelType.BUILDING);
+
+        }
+
+        public bool isOnBlock(int i, int j) 
+        {
+            return mapPixels[i * SQUARE_SIZE, j * SQUARE_SIZE] == PixelType.BLOCK;
+        }
+
+
+
+
+
+        public void getPrintingList(ref List<PixelToPrint> resultList)  
+        {
+
+            
+            for (int i = 0; i < MAX_ROW_INDEX + 1; i++)
+                for (int j = 0; j < MAX_COL_INDEX + 1; j++)
+                    if (mapPixels[i * SQUARE_SIZE, j * SQUARE_SIZE] != PixelType.EMPTY)
+                    {
+                        resultList.Add(new PixelToPrint(i * SQUARE_SIZE, j * SQUARE_SIZE, mapPixels[i * SQUARE_SIZE, j * SQUARE_SIZE]));  
+                    }
+                    else if (mapPixels[i * SQUARE_SIZE, j * SQUARE_SIZE] != PixelType.INTERRUPTED_BUILDING)
+                    {
+                        resultList.Add(new PixelToPrint(i * SQUARE_SIZE, j * SQUARE_SIZE, mapPixels[i * SQUARE_SIZE, j * SQUARE_SIZE]));
+
+                    }
+
+        }
+
+
+        private int startOfSquare(int index) 
+        {
+            return index * SQUARE_SIZE;
+        }
+        private int endOfSquare(int index)  
+        {
+            return startOfSquare(index) + SQUARE_SIZE;
+        }
+
+
+
+        private void fill(int startPixelX, int endPixelX, int startPixelY, int endPixelY, PixelType type)  
+        {
+            for (int i = startPixelX; i < endPixelX; i++)
+            {
+                for (int j = startPixelY; j < endPixelY; j++)
+                {
+                    mapPixels[i, j] = type;
+                }
+            }
+        }
+
+        private void fillRow(int rowIndex, PixelType valueToFill)
+        {
+            fill(startOfSquare(rowIndex), startOfSquare(rowIndex + 1), startOfSquare(0), startOfSquare(MAX_COL_INDEX + 1), valueToFill);
+        }
+
+        private void fillCol(int colIndex, PixelType valueToFill)
+        {
+            fill(startOfSquare(0), startOfSquare(MAX_ROW_INDEX + 1), startOfSquare(colIndex), startOfSquare(colIndex + 1), valueToFill);
+        }
+
+
+        private int getPixel(int indexOfBlock)
+        {
+            return indexOfBlock * SQUARE_SIZE;
+        }
+
+
+
+    }
+}
+
+
+Klasa NormalEnemy.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    class NormalEnemy : Enemy   
+    {
+        int directionX;
+        int directionY;
+           
+
+      
+
+        public NormalEnemy() 
+        {
+            type = PixelType.ENEMY_NORMAL;  
+            pace = 1;
+            x = randomInt(Map.SQUARE_SIZE*4, Map.MAP_HEIGHT- 4*Map.SQUARE_SIZE-1);   
+            y = randomInt(Map.SQUARE_SIZE*4, Map.MAP_WIDTH - 4*Map.SQUARE_SIZE-1);
+
+
+            directionX = randomDirection();
+            directionY = randomDirection();
+
+
+
+            
+
+
+        }
+
+        public override void move(int iteration)
+        {
+            if (iteration % pace == 0) 
+            {
+                x += directionX;
+                y += directionY;
+            }
+        }
+
+        public override void solveCollision(Logic.CollisionSide side, ref Map map)   
+        {
+            if(side == Logic.CollisionSide.DOWN || side == Logic.CollisionSide.UP)
+                directionX *= -1;   
+            else if (side == Logic.CollisionSide.LEFT || side == Logic.CollisionSide.RIGHT)
+                directionY *= -1;
+
+            move(0); 
+            
+            
+
+        }
+    }
+}
+
+
+Klasa Player.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    class Player  
+    {
+        public enum MovePlayer { UP, DOWN, LEFT, RIGHT, NOTHING};
+
+        public int xBlock = 0;  
+        public int yBlock = 0;
+
+        public Player.MovePlayer lastPlayerMove = Player.MovePlayer.RIGHT;
+
+
+        public void reset()  
+        {
+            xBlock = 0;  
+            yBlock = 0;
+        }
+
+        public void move(MovePlayer type, Map map)  
+        {
+            
+
+
+            if (type != MovePlayer.NOTHING)
+                lastPlayerMove = type;
+
+            if (type == MovePlayer.UP && xBlock > 0)
+                xBlock--;
+            else if (type == MovePlayer.DOWN && xBlock < Map.MAX_ROW_INDEX)
+                xBlock++;
+            else if (type == MovePlayer.LEFT && yBlock > 0)
+                yBlock--;
+            else if (type == MovePlayer.RIGHT && yBlock < Map.MAX_COL_INDEX)
+                yBlock++;
+
+
+
+            if(map.isEmpty(xBlock * Map.SQUARE_SIZE, yBlock*Map.SQUARE_SIZE))  
+            {
+                map.build(xBlock,yBlock);
+            }
+            
+            
+        }
+    }
+}
+
+
+Klasa Program.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using SDL2;
+
+
+namespace sliwa2
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            
+
+            core myCore = new core();  
+
+           
+            IntPtr gc = SDL2.SDL.SDL_GameControllerOpen(0);
+
+            Queue<Level> levels = new Queue<Level>(); 
+            levels.Enqueue(new Level(2, 0)); 
+            levels.Enqueue(new Level(2, 1));
+            levels.Enqueue(new Level(3, 1));
+            levels.Enqueue(new Level(3, 2));
+            levels.Enqueue(new Level(4, 2));
+            levels.Enqueue(new Level(4, 3));
+            levels.Enqueue(new Level(5, 3));
+            levels.Enqueue(new Level(5, 4));
+           
+            
+
+
+
+
+
+
+            const int PROGRESS_PACE = 5; 
+
+            Logic logic = new Logic();  
+
+            int iteration = 0; 
+            Level currentLevel = levels.Dequeue(); 
+            currentLevel.initLevel(); 
+            int levelNum = 1; 
+
+            while (logic.isGame())  
+            {
+                iteration++; 
+                
+
+                logic.moveEnemies(currentLevel.enemies, iteration);  
+
+                logic.enemyPlayerCollison(currentLevel.enemies, currentLevel.player, currentLevel.map);  
+
+                logic.solveCollisions(ref currentLevel.enemies, ref currentLevel.map); 
+                logic.playerInterruptedBuildingCollision(ref currentLevel.player, ref currentLevel.map); 
+                Player.MovePlayer nextMove = myCore.getMoveDirectionFromPlayer();  
+
+                currentLevel.player.move(nextMove, currentLevel.map);  
+
+                if (currentLevel.map.isOnBlock(currentLevel.player.xBlock, currentLevel.player.yBlock)) 
+                    logic.fillSpace(ref currentLevel.map, currentLevel.enemies); 
+
+                if(iteration % PROGRESS_PACE == 0) 
+                    currentLevel.map.progressInterrupted(); 
+
+
+                myCore.Events();
+
+
+
+
+                myCore.feedByMap(ref currentLevel.map);  
+                myCore.feedByEnemies(currentLevel.enemies); 
+                myCore.feedByPlayer(currentLevel.player);  
+
+                myCore.Present();  
+                myCore.clear();   
+
+                myCore.printScore(logic); 
+                myCore.printLives(logic); 
+                myCore.printLevel(levelNum); 
+                myCore.printPercent(ref currentLevel.map); 
+
+                System.Threading.Thread.Sleep(5);  
+
+
+                if (currentLevel.hasEnded()) 
+                {
+                    currentLevel = levels.Dequeue(); 
+                    currentLevel.initLevel(); 
+                    logic.newLive(); 
+                    levelNum++; 
+                }
+            }
+
+        }
+    }
+}
+
+
+Klasa RedEnemy.cs
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace sliwa2
+{
+    class RedEnemy : Enemy
+    {
+
+        int directionX;
+        int directionY;
+
+
+
+        public RedEnemy()
+        {
+            type = PixelType.ENEMY_RED;
+            pace = 2; 
+            x = randomInt(Map.SQUARE_SIZE * 4, Map.MAP_HEIGHT - 4 * Map.SQUARE_SIZE - 1);
+            y = randomInt(Map.SQUARE_SIZE * 4, Map.MAP_WIDTH - 4 * Map.SQUARE_SIZE - 1);
+
+
+            directionX = randomDirection();
+            directionY = randomDirection();
+
+
+        }
+
+        public override void move(int iteration)
+        {
+            if (iteration % pace == 0) 
+            {
+                x += directionX;
+                y += directionY;
+
+            }
+        }
+
+
+        public override void solveCollision(Logic.CollisionSide side, ref Map map)
+        {
+            if (side == Logic.CollisionSide.DOWN || side == Logic.CollisionSide.UP) 
+                directionX *= -1;
+            else if (side == Logic.CollisionSide.LEFT || side == Logic.CollisionSide.RIGHT)
+                directionY *= -1;
+
+
+            
+            if (side == Logic.CollisionSide.UP) 
+                map.destroy(x - Map.SQUARE_SIZE, y / Map.SQUARE_SIZE * Map.SQUARE_SIZE);
+            else if (side == Logic.CollisionSide.DOWN)
+                map.destroy(x + Map.SQUARE_SIZE + 1, y / Map.SQUARE_SIZE * Map.SQUARE_SIZE); 
+
+            else if (side == Logic.CollisionSide.LEFT)
+                map.destroy(x, y - Map.SQUARE_SIZE);
+            else if (side == Logic.CollisionSide.RIGHT)
+                map.destroy(x, y + Map.SQUARE_SIZE + 1);
+
+            move(0); 
+
+        }
+
+    }
+}
+
